@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTTracker", "BTTracker\BTTracker.csproj", "{C00B4321-E767-482A-80D9-3DA475A90209}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C00B4321-E767-482A-80D9-3DA475A90209}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C00B4321-E767-482A-80D9-3DA475A90209}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C00B4321-E767-482A-80D9-3DA475A90209}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C00B4321-E767-482A-80D9-3DA475A90209}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A978C641-8A1E-4AF5-A9B1-67C539AF2B87}
+	EndGlobalSection
+EndGlobal
