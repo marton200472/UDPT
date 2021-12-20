@@ -9,7 +9,7 @@ namespace BTTracker
     public static class Extensions
     {
 
-        public static int ToInt(this byte[] source, int offset=0)
+        public static int DecodeInt(this byte[] source, int offset=0)
         {
             byte[] correct = Enumerable.Range(offset, 4).Select(x => source[x]).ToArray();
             if (BitConverter.IsLittleEndian)
@@ -19,7 +19,17 @@ namespace BTTracker
             return i;
         }
 
-        public static long ToLong(this byte[] source, int offset=0)
+        public static short DecodeShort(this byte[] source, int offset = 0)
+        {
+            byte[] correct = Enumerable.Range(offset, 2).Select(x => source[x]).ToArray();
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(correct);
+
+            short i = BitConverter.ToInt16(correct);
+            return i;
+        }
+
+        public static long DecodeLong(this byte[] source, int offset=0)
         {
             byte[] correct = Enumerable.Range(offset, 8).Select(x => source[x]).ToArray();
 
@@ -33,6 +43,40 @@ namespace BTTracker
             if (BitConverter.IsLittleEndian)
                 Array.Reverse(correct);
             return Encoding.UTF8.GetString(correct);
+        }
+
+        public static byte[] GetBigendianBytes(this int a)
+        {
+            byte[] converted = BitConverter.GetBytes(a);
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(converted);
+            }
+            return converted;
+        }
+        public static byte[] GetBigendianBytes(this long a)
+        {
+            byte[] converted = BitConverter.GetBytes(a);
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(converted);
+            }
+            return converted;
+        }
+
+        public static byte[] GetBigendianBytes(this short a)
+        {
+            byte[] converted = BitConverter.GetBytes(a);
+            if (BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(converted);
+            }
+            return converted;
+        }
+        public static byte[] GetBigendianBytes(this string a)
+        {
+            byte[] converted = Encoding.UTF8.GetBytes(a);
+            return converted;
         }
     }
 }
