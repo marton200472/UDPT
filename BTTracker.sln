@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BTTracker", "BTTracker\BTTracker.csproj", "{C00B4321-E767-482A-80D9-3DA475A90209}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "BTTracker", "BTTracker\BTTracker.csproj", "{C00B4321-E767-482A-80D9-3DA475A90209}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

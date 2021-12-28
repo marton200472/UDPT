@@ -1,9 +1,11 @@
 ﻿using BTTracker;
 using System.Net;
+using System.Net.Sockets;
 
-UdpTracker tracker = new UdpTracker(IPAddress.Any, 55555, TimeSpan.FromMinutes(30));
+TrackerConfig config = TrackerConfig.FromFile("tracker.cnfg");
+UdpTracker tracker = new UdpTracker(config, TimeSpan.FromMinutes(30));
 tracker.Start();
-Console.WriteLine("Tracker started. Press any key to continue.");
+Console.WriteLine("Press any key to exit...");
 Console.ReadKey();
 Console.WriteLine("Exiting...");
 tracker.Stop();

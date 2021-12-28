@@ -1,0 +1,19 @@
+[general]
+#The interval the clients should announce, in seconds. Default is 1800.
+AnnounceInterval = 1800
+#The working mode of the tracker. Default is dynamic.
+#dynamic - accepts any torrent
+#static - torrents need to be registered before using
+WorkingMode = "dynamic"
+
+[network]
+#Networkmode sets if the tracker works inside LAN (lan), with public IPs (public), or both (mixed).
+NetworkMode = "mixed"
+#The port the tracker should listen on using IPv4.
+IPv4Port = 6969
+#The IPv4 address the tracker should listen on. 0.0.0.0 means all interfaces. Comment out if not needed.
+IPv4Address = "0.0.0.0"
+#The port the tracker should listen on using IPv6.
+IPv6Port = 6969
+#The IPv6 address the tracker should listen on. [::] means all interfaces. Comment out if not needed.
+IPv6Address = "[::]"

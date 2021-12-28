@@ -9,7 +9,7 @@ namespace BTTracker
 {
     internal class TrackerDbContext : DbContext
     {
-        public DbSet<Peer> Peers { get; set; }
+        //public DbSet<Peer> Peers { get; set; }
         public TrackerDbContext(DbContextOptions options):base(options)
         {
             Database.EnsureCreated();
