@@ -1,11 +1,15 @@
 ﻿using BTTracker;
-using System.Net;
-using System.Net.Sockets;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
-TrackerConfig config = TrackerConfig.FromFile("tracker.cnfg");
-UdpTracker tracker = new UdpTracker(config, TimeSpan.FromMinutes(30));
-tracker.Start();
-Console.WriteLine("Press any key to exit...");
-Console.ReadKey();
-Console.WriteLine("Exiting...");
-tracker.Stop();
+IHost host=Host.CreateDefaultBuilder(args)
+    .ConfigureServices(services =>
+    {
+        services.AddSingleton(TrackerConfig.FromFile("tracker.cnfg"));
+
+        services.AddHostedService<UdpTracker>();
+    })
+    .UseSystemd()
+    .Build();
+await host.RunAsync();
+

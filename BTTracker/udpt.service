@@ -1,0 +1,9 @@
+﻿[Unit]
+Description=Simple UDP BitTorrent trcker written in C#.
+
+[Service]
+Type=notify
+ExecStart=/usr/sbin/testapp
+
+[Install]
+WantedBy=multi-user.target
