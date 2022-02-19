@@ -1,5 +1,5 @@
 ﻿[Unit]
-Description=Simple UDP BitTorrent trcker written in C#.
+Description=Simple UDP BitTorrent tracker written in C#.
 
 [Service]
 Type=notify

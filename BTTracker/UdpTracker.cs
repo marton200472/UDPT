@@ -7,10 +7,12 @@ using System.Net.Sockets;
 using System.Net;
 using Microsoft.EntityFrameworkCore;
 using System.Net.NetworkInformation;
+using Microsoft.Extensions.Hosting;
+using BTTracker.UDPMessages;
 
 namespace BTTracker
 {
-    internal class UdpTracker
+    internal class UdpTracker : IHostedService
     {
         private List<ConnectionId> ConnectionIds = new List<ConnectionId>();
         private List<Peer> Peers = new List<Peer>();
@@ -32,19 +34,11 @@ namespace BTTracker
 
         private List<(UdpClient, CancellationTokenSource)> Clients = new List<(UdpClient, CancellationTokenSource)>();
 
-        public UdpTracker(TrackerConfig config,TimeSpan announceInterval,DbContextOptions dboptions =null)
+        public UdpTracker(TrackerConfig config,TrackerDbContext dbContext)
         {
-            AnnounceInterval = announceInterval;
+            AnnounceInterval = config.AnnounceInterval;
             TrackerConfig = config;
-            if (dboptions==null)
-            {
-                string connstr = @$"Data Source={new System.IO.FileInfo(System.Reflection.Assembly.GetExecutingAssembly().Location).DirectoryName}/tracker.db;".Replace('\\','/');
-                dboptions = new DbContextOptionsBuilder()
-                    .UseSqlite(connstr).Options;
-                
-            }
-            DbOptions = dboptions;
-            DbContext = new TrackerDbContext(dboptions);
+            DbContext = dbContext;
             DbContext.Database.Migrate();
             if  (config==null) config=TrackerConfig.Default;
 
@@ -174,32 +168,26 @@ namespace BTTracker
 
         private byte[] HandleConnect(byte[] request)
         {
-            int transactionid = request.DecodeInt(12);
+            ConnectionRequest connreq = ConnectionRequest.FromByteArray(request);
             long connectionid = R.NextInt64();
             lock (_connectionIdLock)
             {
                 ConnectionIds.Add(new ConnectionId(DateTime.Now + TimeSpan.FromMinutes(2), connectionid));
             }
-            Console.WriteLine("added new connectionid "+connectionid);
-            byte[] response = new byte[16];
-            0.GetBigendianBytes().CopyTo(response,0);
-            transactionid.GetBigendianBytes().CopyTo(response, 4);
-            connectionid.GetBigendianBytes().CopyTo(response, 8);
-            return response;
+            return connreq.GetResponseBytes(connectionid);
         }
         
         private byte[] HandleAnnounce(byte[] request, IPEndPoint host)
         {
-            long connectionid = request.DecodeLong(0);
-            int transactionid = request.DecodeInt(12);
-            string info_hash = BitConverter.ToString(request, 16, 20);
-            string peer_id= request.DecodeString(36, 20);
-            short port = request.DecodeShort(96);
-            long left = request.DecodeLong(64);
-            int num_want = request.DecodeInt(92);
-            if (num_want > 0) num_want = 50;
             IPAddress hostipaddress = host.Address;
-
+            AnnounceRequest annreq = AnnounceRequest.FromByteArray(request,hostipaddress.AddressFamily);
+            lock (_connectionIdLock)
+            {
+                if (!ConnectionIds.Any(x=>x.id==annreq.ConnectionId))
+                {
+                    return HandleError(request, "Invalid connection id.");
+                }
+            }
             
             IPAddress? localipaddress=null, publicipaddress;
 
@@ -228,63 +216,54 @@ namespace BTTracker
 
             if (publicipaddress==null)
             {
-                return HandleError(request,"No valid IPv6 address.");
+                return HandleError(request,"No valid IP address.");
             }
             Peer[] allpeers;
             lock (_peerLock)
             {
-                Peer? currentpeer = Peers.SingleOrDefault(x => (x.LocalAddress.Equals(localipaddress) || x.Address.Equals(publicipaddress)) && x.InfoHash == info_hash && x.Port == port);
+                Peer? currentpeer = Peers.SingleOrDefault(x => (x.LocalAddress.Equals(localipaddress) || x.Address.Equals(publicipaddress)) && x.InfoHash == annreq.InfoHash && x.Port == annreq.Port);
                 if (currentpeer == null)
                 {
-                    Peer newPeer = new Peer(publicipaddress, port, info_hash, localipaddress);
-                    if (left > 0) newPeer.Status = Peer.PeersStatus.Leech;
+                    Peer newPeer = new Peer(publicipaddress, annreq.Port, annreq.InfoHash, localipaddress);
+                    if (annreq.Left > 0) newPeer.Status = Peer.PeersStatus.Leech;
                     else newPeer.Status = Peer.PeersStatus.Seed;
 
                     Peers.Add(newPeer);
 
 
-                    Console.WriteLine("Added peer: " + publicipaddress.ToString() + ":" + port);
+                    Console.WriteLine("Added peer: " + publicipaddress.ToString() + ":" + annreq.Port);
                 }
                 else
                 {
                     currentpeer.Refresh();
                 }
 
-                allpeers = Peers.Where(x => x.AddressFamily == host.AddressFamily && x.InfoHash == info_hash).ToArray();
+                allpeers = Peers.Where(x => x.AddressFamily == host.AddressFamily && x.InfoHash == annreq.InfoHash).ToArray();
             }
             
-            var peerstosend = allpeers.Take(num_want).ToArray();
-
-
-            int peerdatalen = host.AddressFamily == AddressFamily.InterNetwork ? 6 : 18;
-            byte[] response = new byte[20+ peerstosend.Length*peerdatalen];
-            1.GetBigendianBytes().CopyTo(response,0);
-            transactionid.GetBigendianBytes().CopyTo(response,4);
-            ((int)Math.Round(AnnounceInterval.TotalSeconds)).GetBigendianBytes().CopyTo(response, 8);
-            Peers.Where(x=>x.Status==Peer.PeersStatus.Leech).Count().GetBigendianBytes().CopyTo(response, 12);
-            Peers.Where(x => x.Status == Peer.PeersStatus.Seed).Count().GetBigendianBytes().CopyTo(response, 16);
-
-            for (int i = 0; i < peerstosend.Length; i++)
+            var peerstosend = allpeers.Take(annreq.WantedClients).Select(x =>
             {
-                if (localipaddress==null|| peerstosend[i].LocalAddress==null)
+                if (localipaddress == null || x.LocalAddress == null)
                 {
-                    peerstosend[i].Address.GetAddressBytes().CopyTo(response, 20 + (i * peerdatalen));
+                    return new Peer(x.Address,x.Port,annreq.InfoHash);
                 }
                 else
                 {
-                    peerstosend[i].LocalAddress.GetAddressBytes().CopyTo(response,20+ (i * peerdatalen));
+                    return new Peer(x.LocalAddress, x.Port, annreq.InfoHash);
                 }
-                peerstosend[i].Port.GetBigendianBytes().CopyTo(response, 20+peerdatalen-2 + (i * peerdatalen));
+            }).ToArray();
 
-            }
-            Console.WriteLine("Responded to client.");
-            return response;
+            int leechers=allpeers.Where(x=>x.Status==Peer.PeersStatus.Leech).Count();
+            int seeders=allpeers.Where(x => x.Status == Peer.PeersStatus.Seed).Count();
+
+            return annreq.GetResponseBytes(AnnounceInterval,leechers,seeders,peerstosend);
         }
 
         private byte[] HandleError(byte[] request, string message)
         {
             int transactionid = request.DecodeInt(12);
             byte[] msg = Encoding.UTF8.GetBytes(message);
+            Array.Reverse(msg);
             byte[] response = new byte[8+msg.Length];
             BitConverter.GetBytes(3).CopyTo(response, 0);
             BitConverter.GetBytes(transactionid).CopyTo(response, 0);
@@ -352,8 +331,18 @@ namespace BTTracker
             return (Action)i;
         }
 
-        
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            Start();
+            return Task.FromResult(true);
+        }
 
-        private record struct ConnectionId(DateTime exp,long id);
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            Stop();
+            return Task.FromResult(true);
+        }
+
+        internal record struct ConnectionId(DateTime exp,long id);
     }
 }

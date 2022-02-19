@@ -35,7 +35,8 @@ namespace BTTracker
         public static long DecodeLong(this byte[] source, int offset=0)
         {
             byte[] correct = Enumerable.Range(offset, 8).Select(x => source[x]).ToArray();
-
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(correct);
             long i = BitConverter.ToInt64(correct);
             return i;
         }
