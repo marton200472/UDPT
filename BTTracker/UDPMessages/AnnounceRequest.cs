@@ -21,7 +21,7 @@ namespace BTTracker.UDPMessages
 		internal AnnounceEvent Event { get; }
 		//IPAddress and Key ignored
 		internal int WantedClients { get; }
-		internal short Port { get; }
+		internal ushort Port { get; set; }
 
 		private AnnounceRequest(byte[] source, System.Net.Sockets.AddressFamily addressFamily)
 		{
@@ -29,14 +29,14 @@ namespace BTTracker.UDPMessages
 
 			ConnectionId = source.DecodeLong(0);
 			TransactionId = source.DecodeInt(12);
-			InfoHash = source.DecodeString(16, 20);
-			PeerId = source.DecodeString(36,20);
+			InfoHash = source.DecodeInfoHash(16, 20);
+            PeerId = source.DecodeString(36, 20);
 			Downloaded = source.DecodeLong(56);
 			Left = source.DecodeLong(64);
 			Uploaded = source.DecodeLong(72);
 			Event = (AnnounceEvent)source.DecodeInt(80);
 			WantedClients = Math.Min(source.DecodeInt(92),50);
-			Port = source.DecodeShort(96);
+			Port = source.DecodeUShort(96);
 		}
 
 		internal byte[] GetResponseBytes(TimeSpan announceInterval,int leechers, int seeders,IEnumerable<Peer> peers)

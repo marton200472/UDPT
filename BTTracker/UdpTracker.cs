@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Net.NetworkInformation;
 using Microsoft.Extensions.Hosting;
 using BTTracker.UDPMessages;
+using Microsoft.Extensions.Logging;
 
 namespace BTTracker
 {
@@ -18,13 +19,12 @@ namespace BTTracker
         private List<Peer> Peers = new List<Peer>();
         private object _peerLock=new();
         private object _connectionIdLock = new();
-        private object _clientLock = new();
         private object DbLock = new();
         private static Random R = new Random();
         private System.Timers.Timer DeleteTimer;
-        private TrackerDbContext DbContext;
 
-        private DbContextOptions DbOptions;
+
+        private TrackerDbContext DbContext;
 
         private TimeSpan AnnounceInterval;
 
@@ -34,7 +34,11 @@ namespace BTTracker
 
         private List<(UdpClient, CancellationTokenSource)> Clients = new List<(UdpClient, CancellationTokenSource)>();
 
-        public UdpTracker(TrackerConfig config,TrackerDbContext dbContext)
+        private ILogger<UdpTracker> _logger;
+
+        private List<Task> ResponseTasks = new List<Task>();
+
+        public UdpTracker(TrackerConfig config,TrackerDbContext dbContext, ILogger<UdpTracker> logger)
         {
             AnnounceInterval = config.AnnounceInterval;
             TrackerConfig = config;
@@ -44,6 +48,7 @@ namespace BTTracker
 
             PublicIPv4Address = GetPublicIPv4Address();
 
+            _logger = logger;
 
             DeleteTimer = new System.Timers.Timer(30000) { AutoReset = true };
             DeleteTimer.Elapsed += DeleteTimer_Elapsed;
@@ -64,21 +69,31 @@ namespace BTTracker
                 var tokensource = new CancellationTokenSource();
                 Clients.Add((client, tokensource));
                 _ = Listen(client,tokensource.Token);
-                Console.WriteLine($"UDP Tracker running on {endpoint.Address} port {endpoint.Port}");
+                _logger.LogInformation("UDP Tracker running on {0} port {1}", endpoint.Address, endpoint.Port);
             }
             DeleteTimer.Start();
             
         }
 
-        public void Stop()
+        public async Task StopAsync(CancellationToken token)
         {
             foreach (var client in Clients)
             {
                 client.Item2.Cancel();
+                
+            }
+            DeleteTimer.Stop();
+            if (ResponseTasks.Count(x=>!x.IsCompleted)>0&&!token.IsCancellationRequested)
+            {
+                _logger.LogInformation("Waiting for {0} tasks...", ResponseTasks.Count);
+                await Task.WhenAll(ResponseTasks);
+            }
+            
+            foreach (var client in Clients)
+            {
                 client.Item1.Close();
                 client.Item1.Dispose();
             }
-            DeleteTimer.Stop();
         }
 
         private enum Action
@@ -101,40 +116,33 @@ namespace BTTracker
                 }
             }
             if(deletedids>0)
-                Console.WriteLine(DateTime.Now+"\t[Expired ID Deleter]: Deleted "+deletedids+" connectionids.");
+                _logger.LogDebug("Deleted {0} expired connectionids.",deletedids);
             
         }
 
         private void DeleteExpiredPeers()
         {
-            DateTime bruh = DateTime.Now - AnnounceInterval;
+            DateTime lastvalidtimestamp = DateTime.Now - AnnounceInterval;
             for (int i = 0; i < Peers.Count; i++)
             {
-                if (Peers[i].TimeStamp<bruh)
+                if (Peers[i].TimeStamp<lastvalidtimestamp)
                 {
                     Peers.RemoveAt(i);
                     i--;
                 }
             }
-            //using (TrackerDbContext ctx=new TrackerDbContext(DbOptions))
-            //{
-            //    Peer[] peerstodelete = ctx.Peers.AsEnumerable().Where(x => x.TimeStamp < DateTime.Now - AnnounceInterval).ToArray();
-            //    ctx.Peers.RemoveRange(peerstodelete);
-            //    ctx.SaveChanges();
-            //}
         }
 
         private async Task Listen(UdpClient client,CancellationToken token)
         {
-            while (true)
+            while (!token.IsCancellationRequested)
             {
                 var packet = await client.ReceiveAsync(token);
-                if (token.IsCancellationRequested) return;
-                _=Task.Run(() => HandleRequest(client,packet));
+                ResponseTasks.Add(Task.Run(() => HandleRequest(client,packet)));
             }
         }
 
-        private void HandleRequest(UdpClient client, UdpReceiveResult request)
+        private async Task HandleRequest(UdpClient client, UdpReceiveResult request)
         {
             byte[] requestdata = request.Buffer;
             if (requestdata.Length < 16)
@@ -159,11 +167,8 @@ namespace BTTracker
                     response = HandleError(requestdata,"Unknown error happened.");
                     break;
             }
-            lock (_clientLock)
-            {
-                client.Send(response, response.Length, host);
-            }
-            
+
+            await client.SendAsync(response, response.Length, host);
         }
 
         private byte[] HandleConnect(byte[] request)
@@ -181,6 +186,12 @@ namespace BTTracker
         {
             IPAddress hostipaddress = host.Address;
             AnnounceRequest annreq = AnnounceRequest.FromByteArray(request,hostipaddress.AddressFamily);
+
+            if (annreq.Port == 0)
+            {
+                annreq.Port = (ushort)host.Port;
+            }
+
             lock (_connectionIdLock)
             {
                 if (!ConnectionIds.Any(x=>x.id==annreq.ConnectionId))
@@ -262,11 +273,10 @@ namespace BTTracker
         private byte[] HandleError(byte[] request, string message)
         {
             int transactionid = request.DecodeInt(12);
-            byte[] msg = Encoding.UTF8.GetBytes(message);
-            Array.Reverse(msg);
+            byte[] msg = message.GetBigendianBytes();
             byte[] response = new byte[8+msg.Length];
             BitConverter.GetBytes(3).CopyTo(response, 0);
-            BitConverter.GetBytes(transactionid).CopyTo(response, 0);
+            BitConverter.GetBytes(transactionid).CopyTo(response, 4);
             msg.CopyTo(response, 8);
             return response;
         }
@@ -334,12 +344,6 @@ namespace BTTracker
         public Task StartAsync(CancellationToken cancellationToken)
         {
             Start();
-            return Task.FromResult(true);
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            Stop();
             return Task.FromResult(true);
         }
 

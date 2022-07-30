@@ -22,13 +22,13 @@ namespace BTTracker
             return i;
         }
 
-        public static short DecodeShort(this byte[] source, int offset = 0)
+        public static ushort DecodeUShort(this byte[] source, int offset = 0)
         {
             byte[] correct = Enumerable.Range(offset, 2).Select(x => source[x]).ToArray();
             if (BitConverter.IsLittleEndian)
                 Array.Reverse(correct);
 
-            short i = BitConverter.ToInt16(correct);
+            ushort i = BitConverter.ToUInt16(correct);
             return i;
         }
 
@@ -43,10 +43,14 @@ namespace BTTracker
 
         public static string DecodeString(this byte[] source, int offset, int length)
         {
-            byte[] correct = Enumerable.Range(offset, length).Select(x => source[x]).ToArray();
-            if (BitConverter.IsLittleEndian)
-                Array.Reverse(correct);
+            byte[] correct = source.Skip(offset).Take(length).ToArray();
             return Encoding.UTF8.GetString(correct);
+        }
+
+        public static string DecodeInfoHash(this byte[] source, int offset, int length)
+        {
+            var bytes=source.Skip(offset).Take(length).ToArray();
+            return BitConverter.ToString(bytes).Replace("-", "");
         }
 
         public static byte[] GetBigendianBytes(this int a)
@@ -54,6 +58,7 @@ namespace BTTracker
             byte[] converted = BitConverter.GetBytes(a);
             if (BitConverter.IsLittleEndian)
             {
+                
                 Array.Reverse(converted);
             }
             return converted;
@@ -68,7 +73,7 @@ namespace BTTracker
             return converted;
         }
 
-        public static byte[] GetBigendianBytes(this short a)
+        public static byte[] GetBigendianBytes(this ushort a)
         {
             byte[] converted = BitConverter.GetBytes(a);
             if (BitConverter.IsLittleEndian)
@@ -80,6 +85,7 @@ namespace BTTracker
         public static byte[] GetBigendianBytes(this string a)
         {
             byte[] converted = Encoding.UTF8.GetBytes(a);
+            Array.Reverse(converted);
             return converted;
         }
 

@@ -12,7 +12,7 @@ namespace BTTracker
     [Table("Peers")]
     public class Peer
     {
-        public Peer(IPAddress address, short port, string infohash, IPAddress? localAddress=null)
+        public Peer(IPAddress address, ushort port, string infohash, IPAddress? localAddress=null)
         {
             Address = address;
             Port = port;
@@ -32,7 +32,7 @@ namespace BTTracker
         public IPAddress Address { get; set; }
         public IPAddress? LocalAddress { get; set; }
         public System.Net.Sockets.AddressFamily AddressFamily => Address.AddressFamily;
-        public short Port { get; set; }
+        public ushort Port { get; set; }
         public string InfoHash { get; set; }
         public DateTime TimeStamp { get; set; }
         public PeersStatus Status { get; set; }

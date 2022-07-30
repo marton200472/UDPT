@@ -18,11 +18,7 @@ namespace BTTracker
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            
-            if (!optionsBuilder.IsConfigured)
-            {
 
-            }
         }
 
     }
