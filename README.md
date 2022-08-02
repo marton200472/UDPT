@@ -6,3 +6,4 @@ UDP BitTorrent tracker written in C#, using .NET 6.
 - [x] Error
 - [ ] Scrape
 - [ ] Database storage
+- [ ] Web interface
