@@ -232,15 +232,15 @@ namespace BTTracker
             Peer[] allpeers;
             lock (_peerLock)
             {
-                Peer? currentpeer = Peers.SingleOrDefault(x => (x.LocalAddress.Equals(localipaddress) || x.Address.Equals(publicipaddress)) && x.InfoHash == annreq.InfoHash && x.Port == annreq.Port);
+                Peer? currentpeer = Peers.SingleOrDefault(x => x.Id==annreq.PeerId && x.InfoHash==annreq.InfoHash && x.AddressFamily==annreq.AddressFamily);
                 if (currentpeer == null)
                 {
-                    Peer newPeer = new Peer(publicipaddress, annreq.Port, annreq.InfoHash, localipaddress);
+                    Peer newPeer = new Peer(annreq.PeerId,publicipaddress, annreq.Port, annreq.InfoHash, localipaddress);
                     if (annreq.Left > 0) newPeer.Status = Peer.PeersStatus.Leech;
                     else newPeer.Status = Peer.PeersStatus.Seed;
 
                     Peers.Add(newPeer);
-
+                    currentpeer = newPeer;
 
                     Console.WriteLine("Added peer: " + publicipaddress.ToString() + ":" + annreq.Port);
                 }
@@ -249,18 +249,18 @@ namespace BTTracker
                     currentpeer.Refresh();
                 }
 
-                allpeers = Peers.Where(x => x.AddressFamily == host.AddressFamily && x.InfoHash == annreq.InfoHash).ToArray();
+                allpeers = Peers.Where(x => x.AddressFamily == host.AddressFamily && x.InfoHash == annreq.InfoHash && x.Id != annreq.PeerId).ToArray();
             }
             
             var peerstosend = allpeers.Take(annreq.WantedClients).Select(x =>
             {
                 if (localipaddress == null || x.LocalAddress == null)
                 {
-                    return new Peer(x.Address,x.Port,annreq.InfoHash);
+                    return new Peer(x.Id,x.Address,x.Port,annreq.InfoHash);
                 }
                 else
                 {
-                    return new Peer(x.LocalAddress, x.Port, annreq.InfoHash);
+                    return new Peer(x.Id,x.LocalAddress, x.Port, annreq.InfoHash);
                 }
             }).ToArray();
 
