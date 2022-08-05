@@ -32,11 +32,13 @@ namespace Shared.Models
         
         [Key]
         public uint Id { get; set; }
+        [Column(TypeName = "varchar(40)")]
         public string PeerId { get; set; }
         public IPAddress Address { get; set; }
         public IPAddress? LocalAddress { get; set; }
         public System.Net.Sockets.AddressFamily AddressFamily => Address.AddressFamily;
         public ushort Port { get; set; }
+        [Column(TypeName = "varchar(40)")]
         public string InfoHash { get; set; }
         public DateTime TimeStamp { get; set; }
         public PeersStatus Status { get; set; }

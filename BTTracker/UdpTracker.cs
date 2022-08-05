@@ -27,8 +27,8 @@ namespace BTTracker
         private TimeSpan AnnounceInterval;
 
         private ConcurrentQueue<ConnectionId> ConnectionIds = new();
+        private ConcurrentQueue<string> TorrentsToUpdate = new();
 
-        private System.Timers.Timer DeleteTimer;
 
         private IPAddress PublicIPv4Address;
         private ConcurrentQueue<RequestMessage> Requests = new ConcurrentQueue<RequestMessage>();
@@ -51,8 +51,6 @@ namespace BTTracker
 
             _logger = logger;
 
-            DeleteTimer = new System.Timers.Timer(30000) { AutoReset = true };
-            DeleteTimer.Elapsed += DeleteTimer_Elapsed;
         }
 
         
@@ -65,7 +63,7 @@ namespace BTTracker
 
             for (int i = 0; i < 4; i++)
             {
-                var handler = new DataHandlerThread(ServiceProvider, Requests, Responses, ConnectionIds, new IPAddress[] { GetLocalIPv4Address() }, new IPAddress[] { PublicIPv4Address }, AnnounceInterval);
+                var handler = new DataHandlerThread(ServiceProvider, Requests, Responses, ConnectionIds,TorrentsToUpdate, new IPAddress[] { GetLocalIPv4Address() }, new IPAddress[] { PublicIPv4Address }, AnnounceInterval);
                 handler.Start();
                 HandlerThreads.Add(handler);
             }
@@ -83,15 +81,14 @@ namespace BTTracker
 
             keepRunning = true;
             new Thread(SendResponses).Start();
+            new Thread(DeleteExpiredItems).Start();
+            new Thread(TorrentInfoUpdater).Start();
 
-
-            DeleteTimer.Start();
             return Task.CompletedTask;
         }
 
         public async Task StopAsync(CancellationToken token)
         {
-            DeleteTimer.Stop();
 
 
             while (!Requests.IsEmpty)
@@ -136,6 +133,30 @@ namespace BTTracker
             IsRunning = false;
         }
 
+        private void TorrentInfoUpdater(){
+            var context=ServiceProvider.CreateScope().ServiceProvider.GetService<TrackerDbContext>()!;
+            while (keepRunning)
+            {
+                if (TorrentsToUpdate.TryDequeue(out var hash))
+                {
+                    Torrent? torrent=context.Torrents.Find(hash);
+                    if (torrent is null)
+                    {
+                        torrent=new Torrent(hash);
+                        context.Torrents.Add(torrent);
+                    }
+                    torrent.Seeders=context.Peers.Count(x=>x.InfoHash==hash && x.Status==Peer.PeersStatus.Seed);
+                    torrent.Leechers=context.Peers.Count(x=>x.InfoHash==hash && x.Status==Peer.PeersStatus.Leech);
+                    context.SaveChanges();
+
+                }
+                else
+                {
+                    Thread.Sleep(5000);
+                }
+            }
+        }
+
         private void DeleteExpiredIds()
         {
             int deletedids = 0;
@@ -155,30 +176,18 @@ namespace BTTracker
 
         }
 
-
-        private void DeleteTimer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
-        {
-            DeleteExpiredIds();
-            using (var scope = ServiceProvider.CreateScope())
+        private void DeleteExpiredItems(){
+            var context = ServiceProvider.CreateScope().ServiceProvider.GetService<TrackerDbContext>()!;
+            while (keepRunning)
             {
-                var context = scope.ServiceProvider.GetService<TrackerDbContext>()!;
+                DeleteExpiredIds();
                 var peerstoremove = context.Peers.Where(x => (x.TimeStamp + AnnounceInterval) < DateTime.Now);
                 context.Peers.RemoveRange(peerstoremove.ToArray());
-
-                foreach (var torrent in context.Peers.GroupBy(x => x.InfoHash))
-                {
-                    Torrent? torrenttoupdate = context.Torrents.Find(torrent.Key);
-                    if (torrenttoupdate is null)
-                    {
-                        torrenttoupdate = new Torrent(torrent.Key);
-                        context.Torrents.AddAsync(torrenttoupdate);
-                    }
-                    torrenttoupdate.Seeders = torrent.Count(x => x.Status == Peer.PeersStatus.Seed);
-                    torrenttoupdate.Leechers = torrent.Count(x => x.Status == Peer.PeersStatus.Leech);
-                }
-
                 context.SaveChanges();
+                Thread.Sleep(10000);
             }
+                
+            context.Dispose();
         }
         
 

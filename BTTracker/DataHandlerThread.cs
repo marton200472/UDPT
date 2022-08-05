@@ -21,6 +21,7 @@ namespace BTTracker
         private readonly ConcurrentQueue<RequestMessage> _requestQueue;
         private readonly ConcurrentQueue<ResponseMessage> _responseQueue;
         private readonly ConcurrentQueue<ConnectionId> _connectionIds;
+        private readonly ConcurrentQueue<string> _torrentUpdateQueue;
         private readonly IPAddress _ipv4addr;
         private readonly IPAddress _pubipv4addr;
         private readonly IPAddress? _ipv6addr;
@@ -36,11 +37,12 @@ namespace BTTracker
         private bool _isRunning;
         public bool IsRunning => _isRunning;
 
-        internal DataHandlerThread(IServiceProvider srvcProvider, ConcurrentQueue<RequestMessage> reqQueue, ConcurrentQueue<ResponseMessage> respQueue, ConcurrentQueue<ConnectionId> connIds, IPAddress[] localEps,IPAddress[] publicAddresses, TimeSpan announceInterval)
+        internal DataHandlerThread(IServiceProvider srvcProvider, ConcurrentQueue<RequestMessage> reqQueue, ConcurrentQueue<ResponseMessage> respQueue, ConcurrentQueue<ConnectionId> connIds,ConcurrentQueue<string> torrentUpdateQueue, IPAddress[] localEps,IPAddress[] publicAddresses, TimeSpan announceInterval)
         {
             _requestQueue = reqQueue;
             _responseQueue = respQueue;
             _connectionIds = connIds;
+            _torrentUpdateQueue=torrentUpdateQueue;
             _ipv4addr = localEps.Single(x=>x.AddressFamily==AddressFamily.InterNetwork);
             _pubipv4addr = publicAddresses.Single(x=>x.AddressFamily==AddressFamily.InterNetwork);
             _ipv6addr = localEps.SingleOrDefault(x=>x.AddressFamily==AddressFamily.InterNetworkV6);
@@ -201,15 +203,13 @@ namespace BTTracker
 
                     dbContext.Peers.Add(newPeer);
                     currentpeer = newPeer;
-
-                    Console.WriteLine("Added peer: " + publicipaddress.ToString() + ":" + annreq.Port);
                 }
                 else
                 {
                     currentpeer.Refresh();
                 }
                 dbContext.SaveChanges();
-
+                _torrentUpdateQueue.Enqueue(annreq.InfoHash);
                 var allpeers = dbContext.Peers.Where(x => x.InfoHash == annreq.InfoHash).ToArray();
 
 
@@ -232,7 +232,6 @@ namespace BTTracker
             }
             catch (Exception e)
             {
-
                 return HandleError(request, "Client communicated incorrectly.");
             }
 
