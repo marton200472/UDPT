@@ -5,6 +5,7 @@ AnnounceInterval = 1800
 #dynamic - accepts any torrent
 #static - torrents need to be registered before using
 WorkingMode = "dynamic"
+MySqlConnectionString = "server=localhost; port=3306; database=bttracker; user=bttracker; password=y-rSvYX6Y(C]PU.r; Persist Security Info=False; Connect Timeout=300"
 
 [network]
 #Networkmode sets if the tracker works inside LAN (lan), with public IPs (public), or both (mixed).

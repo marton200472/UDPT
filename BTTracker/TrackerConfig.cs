@@ -16,6 +16,7 @@ namespace BTTracker
         internal WorkingModes WorkingMode { get; set; }
         internal NetworkModes NetworkMode { get; set; }
         internal List<IPEndPoint> Endpoints { get; set; }=new List<IPEndPoint>();
+        internal string ConnectionString { get; set; }
 
 
         private TrackerConfig()
@@ -45,6 +46,7 @@ namespace BTTracker
                     config.WorkingMode = WorkingModes.Dynamic;
                     break;
             }
+            config.ConnectionString = (string)general["MySqlConnectionString"];
 
             var network = table["network"] as TomlTable;
             if (network == null) throw new Exception("Configuration file broken.");

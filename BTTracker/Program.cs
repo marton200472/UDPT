@@ -2,17 +2,29 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 IHost host=Host.CreateDefaultBuilder(args)
+    .ConfigureDefaults(args)
     .ConfigureServices(services =>
     {
-        services.AddSingleton(TrackerConfig.FromFile("tracker.cnfg"));
-        services.AddDbContext<TrackerDbContext>(cnfg => {
-            string connstr = @$"Data Source={new System.IO.FileInfo(System.Reflection.Assembly.GetExecutingAssembly().Location).DirectoryName}/tracker.db;".Replace('\\', '/');
+        var config = TrackerConfig.FromFile("tracker.cnfg");
+        services.AddSingleton(config);
+        services.AddDbContext<Shared.TrackerDbContext>(cnfg => {
+            cnfg.UseMySql(config.ConnectionString, ServerVersion.AutoDetect(config.ConnectionString));
             
-                cnfg.UseSqlite(connstr);
+            
         });
         services.AddHostedService<UdpTracker>();
+    })
+    .ConfigureLogging((context, logging) => {
+        var env = context.HostingEnvironment;
+        var config = context.Configuration.GetSection("Logging");
+        // ...
+        logging.AddConfiguration(config);
+        logging.AddConsole();
+        // ...
+        logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
     })
     .UseSystemd()
     .Build();

@@ -7,29 +7,32 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace BTTracker
+namespace Shared.Models
 {
     [Table("Peers")]
     public class Peer
     {
-        public Peer(string peer_id, IPAddress address, ushort port, string infohash, IPAddress? localAddress=null)
+        public Peer(string peer_id, IPAddress address, ushort port, string infohash, IPAddress? localAddress = null)
         {
             Address = address;
             Port = port;
             InfoHash = infohash;
             LocalAddress = localAddress;
-            Id = peer_id;
+            PeerId = peer_id;
             Refresh();
         }
 
+        internal Peer() { }
 
-        internal void Refresh()
+
+        public void Refresh()
         {
             TimeStamp = DateTime.Now;
         }
-
+        
         [Key]
-        public string Id { get; set; }
+        public uint Id { get; set; }
+        public string PeerId { get; set; }
         public IPAddress Address { get; set; }
         public IPAddress? LocalAddress { get; set; }
         public System.Net.Sockets.AddressFamily AddressFamily => Address.AddressFamily;

@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Shared.Models;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace BTTracker.UDPMessages
 {
-	internal class AnnounceRequest
+    internal class AnnounceRequest
 	{
 		internal const int Action = 1;
 		internal System.Net.Sockets.AddressFamily AddressFamily { get; }
@@ -20,7 +21,7 @@ namespace BTTracker.UDPMessages
 		internal long Uploaded { get; }
 		internal AnnounceEvent Event { get; }
 		//IPAddress and Key ignored
-		internal int WantedClients { get; }
+		internal uint WantedClients { get; }
 		internal ushort Port { get; set; }
 
 		private AnnounceRequest(byte[] source, System.Net.Sockets.AddressFamily addressFamily)
@@ -35,7 +36,7 @@ namespace BTTracker.UDPMessages
 			Left = source.DecodeLong(64);
 			Uploaded = source.DecodeLong(72);
 			Event = (AnnounceEvent)source.DecodeInt(80);
-			WantedClients = Math.Min(source.DecodeInt(92),50);
+			WantedClients = Math.Min(source.DecodeUInt(92),50);
 			Port = source.DecodeUShort(96);
 		}
 

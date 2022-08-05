@@ -22,6 +22,16 @@ namespace BTTracker
             return i;
         }
 
+        public static uint DecodeUInt(this byte[] source, int offset = 0)
+        {
+            byte[] correct = Enumerable.Range(offset, 4).Select(x => source[x]).ToArray();
+            if (BitConverter.IsLittleEndian)
+                Array.Reverse(correct);
+
+            uint i = BitConverter.ToUInt32(correct);
+            return i;
+        }
+
         public static ushort DecodeUShort(this byte[] source, int offset = 0)
         {
             byte[] correct = Enumerable.Range(offset, 2).Select(x => source[x]).ToArray();
