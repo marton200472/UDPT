@@ -15,6 +15,6 @@ IPv4Port = 6969
 #The IPv4 address the tracker should listen on. 0.0.0.0 means all interfaces. Comment out if not needed.
 IPv4Address = "0.0.0.0"
 #The port the tracker should listen on using IPv6.
-IPv6Port = 6969
+#IPv6Port = 6969
 #The IPv6 address the tracker should listen on. [::] means all interfaces. Comment out if not needed.
-IPv6Address = "[::]"
+#IPv6Address = "[::]"

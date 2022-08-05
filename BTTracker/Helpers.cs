@@ -3,13 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace BTTracker
 {
-    public static class Extensions
+    public static class Helpers
     {
 
         public static int DecodeInt(this byte[] source, int offset=0)
@@ -173,6 +174,30 @@ namespace BTTracker
             }
 
             throw new NotSupportedException("Only InterNetworkV6 or InterNetwork address families are supported.");
+        }
+
+        internal static Action GetAction(byte[] request)
+        {
+            int i = request.DecodeInt(8);
+            return (Action)i;
+        }
+
+        public static int GetPrefixLengthForLocalAddress(IPAddress sourceaddress)
+        {
+            foreach (NetworkInterface item in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (item.OperationalStatus == OperationalStatus.Up)
+                {
+                    foreach (UnicastIPAddressInformation ip in item.GetIPProperties().UnicastAddresses)
+                    {
+                        if (ip.Address.Equals(sourceaddress))
+                        {
+                            return ip.PrefixLength;
+                        }
+                    }
+                }
+            }
+            throw new Exception("Interface not found with provided address!");
         }
     }
 }
