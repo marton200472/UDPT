@@ -181,9 +181,14 @@ namespace BTTracker
             while (keepRunning)
             {
                 DeleteExpiredIds();
-                var peerstoremove = context.Peers.Where(x => (x.TimeStamp + AnnounceInterval) < DateTime.Now);
-                context.Peers.RemoveRange(peerstoremove.ToArray());
-                context.SaveChanges();
+                var deadline = DateTime.UtcNow.Subtract(AnnounceInterval);
+                var peerstoremove = context.Peers.Where(x => x.TimeStamp < deadline).ToArray();
+                if (peerstoremove.Length>0)
+                {
+                    context.Peers.RemoveRange(peerstoremove);
+                    context.SaveChanges();
+                }
+                
                 Thread.Sleep(10000);
             }
                 

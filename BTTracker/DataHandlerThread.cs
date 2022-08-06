@@ -195,6 +195,17 @@ namespace BTTracker
             try
             {
                 Peer? currentpeer = dbContext.Peers.Where(x => x.PeerId == annreq.PeerId && x.InfoHash == annreq.InfoHash).AsEnumerable().SingleOrDefault(x => x.AddressFamily == annreq.AddressFamily);
+                if (annreq.Event==AnnounceRequest.AnnounceEvent.Stopped)
+                {
+                    if (currentpeer is not null)
+                    {
+                        dbContext.Peers.Remove(currentpeer);
+                        dbContext.SaveChanges();
+                        
+                    }
+                    return annreq.GetResponseBytes(_announceInterval, 0, 0, new List<Peer>());
+                }
+                
                 if (currentpeer is null)
                 {
                     Peer newPeer = new Peer(annreq.PeerId, publicipaddress, annreq.Port, annreq.InfoHash, localipaddress);

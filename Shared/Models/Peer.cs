@@ -27,7 +27,7 @@ namespace Shared.Models
 
         public void Refresh()
         {
-            TimeStamp = DateTime.Now;
+            TimeStamp = DateTime.UtcNow;
         }
         
         [Key]
