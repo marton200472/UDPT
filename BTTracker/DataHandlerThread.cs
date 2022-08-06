@@ -37,15 +37,15 @@ namespace BTTracker
         private bool _isRunning;
         public bool IsRunning => _isRunning;
 
-        internal DataHandlerThread(IServiceProvider srvcProvider, ConcurrentQueue<RequestMessage> reqQueue, ConcurrentQueue<ResponseMessage> respQueue, ConcurrentQueue<ConnectionId> connIds,ConcurrentQueue<string> torrentUpdateQueue, IPAddress[] localEps,IPAddress[] publicAddresses, TimeSpan announceInterval)
+        internal DataHandlerThread(IServiceProvider srvcProvider, ConcurrentQueue<RequestMessage> reqQueue, ConcurrentQueue<ResponseMessage> respQueue, ConcurrentQueue<ConnectionId> connIds,ConcurrentQueue<string> torrentUpdateQueue, IPAddress[] localAddresses,IPAddress[] publicAddresses, TimeSpan announceInterval)
         {
             _requestQueue = reqQueue;
             _responseQueue = respQueue;
             _connectionIds = connIds;
             _torrentUpdateQueue=torrentUpdateQueue;
-            _ipv4addr = localEps.Single(x=>x.AddressFamily==AddressFamily.InterNetwork);
+            _ipv4addr = localAddresses.Single(x=>x.AddressFamily==AddressFamily.InterNetwork);
             _pubipv4addr = publicAddresses.Single(x=>x.AddressFamily==AddressFamily.InterNetwork);
-            _ipv6addr = localEps.SingleOrDefault(x=>x.AddressFamily==AddressFamily.InterNetworkV6);
+            _ipv6addr = localAddresses.SingleOrDefault(x=>x.AddressFamily==AddressFamily.InterNetworkV6);
             _pubipv6addr = publicAddresses.SingleOrDefault(x=>x.AddressFamily==AddressFamily.InterNetworkV6);
 
             _ipv6Enabled = _ipv6addr is not null && _pubipv6addr is not null;
@@ -151,103 +151,99 @@ namespace BTTracker
             IPAddress hostipaddress = host.Address;
             AnnounceRequest annreq = AnnounceRequest.FromByteArray(request, hostipaddress.AddressFamily);
 
-            if (annreq.Port == 0)
-            {
-                annreq.Port = (ushort)host.Port;
-            }
-
-
+            //Check invalid connection ID
             if (!_connectionIds.Any(x => x.id == annreq.ConnectionId))
             {
                 return HandleError(request, "Invalid connection id.");
             }
 
-            IPAddress? localipaddress = null, publicipaddress;
+            //check if IPv6 is enabled
+            if(hostipaddress.AddressFamily==AddressFamily.InterNetworkV6&&!_ipv6Enabled)
+                throw new AnnounceException("IPv6 is not enabled on this tracker.");
 
-            if (IPAddress.IsLoopback(hostipaddress))
+            //Check if client sent port, and update it if necessary
+            if (annreq.Port == 0)
             {
-                if (hostipaddress.AddressFamily==AddressFamily.InterNetwork)
-                {
-                    publicipaddress = _pubipv4addr;
-                }
-                else
-                {
-                    publicipaddress= _pubipv6addr;
-                }
-                
+                annreq.Port = (ushort)host.Port;
             }
-            else if (hostipaddress.IsInSubnet(_ipv4addr + "/" + Helpers.GetPrefixLengthForLocalAddress(_ipv4addr)))
+
+            var ips=DetermineIPAddresses(hostipaddress);
+
+            Peer? peer;
+            
+            peer=dbContext.Peers.Where(x => x.PeerId == annreq.PeerId && x.InfoHash == annreq.InfoHash).AsEnumerable().Where(x=>x.AddressFamily==annreq.AddressFamily).SingleOrDefault();
+            
+            IEnumerable<Peer> peerstosend;
+            int seeders;
+            int leechers;
+            
+            if (annreq.Event==AnnounceRequest.AnnounceEvent.Stopped)
             {
-                localipaddress = hostipaddress;
-                publicipaddress = new IPAddress(_pubipv4addr.GetAddressBytes());
+                if (peer is not null)
+                {
+                    dbContext.Peers.Remove(peer);
+                    dbContext.SaveChanges();
+                }
+                peerstosend=new Peer[0];
+                seeders=0;
+                leechers=0;
             }
             else
             {
-                publicipaddress = hostipaddress;
-            }
-
-
-            if (publicipaddress == null)
-            {
-                return HandleError(request, "No valid IP address.");
-            }
-
-            try
-            {
-                Peer? currentpeer = dbContext.Peers.Where(x => x.PeerId == annreq.PeerId && x.InfoHash == annreq.InfoHash).AsEnumerable().SingleOrDefault(x => x.AddressFamily == annreq.AddressFamily);
-                if (annreq.Event==AnnounceRequest.AnnounceEvent.Stopped)
-                {
-                    if (currentpeer is not null)
-                    {
-                        dbContext.Peers.Remove(currentpeer);
-                        dbContext.SaveChanges();
-                        
-                    }
-                    return annreq.GetResponseBytes(_announceInterval, 0, 0, new List<Peer>());
-                }
-                
-                if (currentpeer is null)
-                {
-                    Peer newPeer = new Peer(annreq.PeerId, publicipaddress, annreq.Port, annreq.InfoHash, localipaddress);
-                    if (annreq.Left > 0) newPeer.Status = Peer.PeersStatus.Leech;
-                    else newPeer.Status = Peer.PeersStatus.Seed;
-
-                    dbContext.Peers.Add(newPeer);
-                    currentpeer = newPeer;
+                if(peer is null){
+                    peer=new Peer(annreq.PeerId,ips.publicaddress,annreq.Port,annreq.InfoHash,ips.privateaddress);
+                    dbContext.Peers.Add(peer);
                 }
                 else
                 {
-                    currentpeer.Refresh();
+                    peer.Refresh();
                 }
-                dbContext.SaveChanges();
-                _torrentUpdateQueue.Enqueue(annreq.InfoHash);
-                var allpeers = dbContext.Peers.Where(x => x.InfoHash == annreq.InfoHash).ToArray();
 
-
-                var peerstosend = allpeers.Where(x => x.AddressFamily == host.AddressFamily && x.PeerId != annreq.PeerId).Take((int)annreq.WantedClients).Select(x =>
+                if (annreq.Left>0)
                 {
-                    if (localipaddress == null || x.LocalAddress == null)
-                    {
-                        return new Peer(x.PeerId, x.Address, x.Port, annreq.InfoHash);
-                    }
-                    else
-                    {
-                        return new Peer(x.PeerId, x.LocalAddress, x.Port, annreq.InfoHash);
-                    }
-                }).ToArray();
+                    peer.Status=Peer.PeersStatus.Leech;
+                }
+                else
+                {
+                    peer.Status=Peer.PeersStatus.Seed;
+                }
 
-                int leechers = allpeers.Where(x => x.Status == Peer.PeersStatus.Leech).Count();
-                int seeders = allpeers.Where(x => x.Status == Peer.PeersStatus.Seed).Count();
+                dbContext.SaveChanges();
 
-                return annreq.GetResponseBytes(_announceInterval, leechers, seeders, peerstosend);
-            }
-            catch (Exception e)
-            {
-                return HandleError(request, "Client communicated incorrectly.");
+                var peers=dbContext.Peers.Where(x=>x.InfoHash==annreq.InfoHash).ToArray();
+
+                peerstosend=peers.Where(x=>x.AddressFamily==annreq.AddressFamily).Except(new Peer[]{peer}).Take((int)annreq.WantedClients).ToArray();
+
+                seeders=peers.Count(x=>x.Status==Peer.PeersStatus.Seed);
+                leechers=peers.Count(x=>x.Status==Peer.PeersStatus.Leech);
             }
 
+            _torrentUpdateQueue.Enqueue(annreq.InfoHash);
 
+            return annreq.GetResponseBytes(_announceInterval,leechers,seeders,peerstosend);
             
+        }
+
+        private (IPAddress publicaddress, IPAddress? privateaddress) DetermineIPAddresses(IPAddress source){
+            if (IPAddress.IsLoopback(source))
+            {
+                if (source.AddressFamily==AddressFamily.InterNetwork)
+                {
+                    return (_pubipv4addr, _ipv4addr);
+                }
+                else{
+                    return (_pubipv6addr!, _ipv6addr);
+                }
+            }
+            else if (source.AddressFamily==AddressFamily.InterNetwork&&source.IsInSubnet(_ipv4addr+"/"+Helpers.GetPrefixLengthForLocalAddress(_ipv4addr) ))
+            {
+                return (_pubipv4addr,source);
+            }
+            else if (source.IsIPv6LinkLocal)
+            {
+                return (_pubipv6addr!,source);
+            }
+            return (source,null);
         }
 
         private byte[] HandleError(byte[] request, string message)
