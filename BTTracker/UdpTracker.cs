@@ -187,6 +187,11 @@ namespace BTTracker
                 {
                     context.Peers.RemoveRange(peerstoremove);
                     context.SaveChanges();
+                    foreach (var torrent in peerstoremove.Select(x=>x.InfoHash).Distinct())
+                    {
+                        TorrentsToUpdate.Enqueue(torrent);
+                    }
+                    
                 }
                 
                 Thread.Sleep(10000);
