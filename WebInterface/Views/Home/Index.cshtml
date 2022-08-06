@@ -1,0 +1,28 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Welcome</h1>
+    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+</div>
+<div id="data">
+
+</div>
+
+@section Scripts {
+    <script type="text/javascript">
+        function LoadTrackerData(){
+            $('#data').load('/Home/TrackerData');
+        }
+        $(function() {
+
+           LoadTrackerData(); // first time
+
+           // re-call the function each 5 seconds
+           window.setInterval("LoadTrackerData()", 5000);
+
+        });
+        
+    </script>
+}

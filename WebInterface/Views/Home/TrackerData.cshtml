@@ -1,0 +1,53 @@
+﻿@using Shared.Models
+@model TrackerDataViewModel
+
+<div>
+    <div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <td>Info Hash</td>
+                    <td>Seeders</td>
+                    <td>Leechers</td>
+                    <td>Downloaded</td>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (Torrent torrent in Model.Torrents)
+                {
+                    <tr>
+                        <td>@torrent.InfoHash</td>
+                        <td>@torrent.Seeders</td>
+                        <td>@torrent.Leechers</td>
+                        <td>@torrent.Downloaded</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <td>Peer Id</td>
+                    <td>Info Hash</td>
+                    <td>Ip Address</td>
+                    <td>Port</td>
+                    <td>Status</td>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (Peer peer in Model.Peers)
+                {
+                    <tr>
+                        <td>@peer.PeerId</td>
+                        <td>@peer.InfoHash</td>
+                        <td>@peer.Address</td>
+                        <td>@peer.Port</td>
+                        <td>@peer.Status</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
