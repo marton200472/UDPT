@@ -30,7 +30,6 @@ namespace BTTracker
         private ConcurrentQueue<string> TorrentsToUpdate = new();
 
 
-        private IPAddress PublicIPv4Address;
         private ConcurrentQueue<RequestMessage> Requests = new ConcurrentQueue<RequestMessage>();
         private ConcurrentQueue<ResponseMessage> Responses = new ConcurrentQueue<ResponseMessage>();
         private IServiceProvider ServiceProvider;
@@ -57,13 +56,24 @@ namespace BTTracker
 
         public Task StartAsync(CancellationToken token)
         {
-            PublicIPv4Address = GetPublicIPv4Address();
-            _logger.LogInformation("Public IP address: {0}", PublicIPv4Address);
+            var pubipv4 = GetPublicIPv4Address();
+            var ipv6 = GetIPv6Address();
+            if (TrackerConfig.Endpoints.Any(x=>x.AddressFamily==AddressFamily.InterNetwork)&&pubipv4 is null)
+            {
+                return Task.FromException(new Exception("Failed to get public IPv4 address."));
+            }
+
+            if (TrackerConfig.Endpoints.Any(x => x.AddressFamily == AddressFamily.InterNetworkV6) && ipv6 is null)
+            {
+                return Task.FromException(new Exception("Failed to get IPv6 address."));
+            }
+
+            _logger.LogInformation("Public IP address: {0}", pubipv4);
             _logger.LogInformation("Starting handlers...");
 
             for (int i = 0; i < 4; i++)
             {
-                var handler = new DataHandlerThread(ServiceProvider, Requests, Responses, ConnectionIds,TorrentsToUpdate, new IPAddress[] { GetLocalIPv4Address() }, new IPAddress[] { PublicIPv4Address }, AnnounceInterval);
+                var handler = new DataHandlerThread(ServiceProvider, Requests, Responses, ConnectionIds,TorrentsToUpdate, new IPAddress[] { GetLocalIPv4Address(), ipv6! }, pubipv4! , AnnounceInterval);
                 handler.Start();
                 HandlerThreads.Add(handler);
             }
@@ -231,10 +241,18 @@ namespace BTTracker
             }
         }
 
-        private IPAddress GetPublicIPv4Address()
+        private IPAddress? GetPublicIPv4Address()
         {
-            string externalIpString = new HttpClient().GetStringAsync("http://icanhazip.com").GetAwaiter().GetResult().Replace("\\r\\n", "").Replace("\\n", "").Trim();
-            return IPAddress.Parse(externalIpString);
+            try
+            {
+                string externalIpString = new HttpClient().GetStringAsync("http://icanhazip.com").GetAwaiter().GetResult().Replace("\\r\\n", "").Replace("\\n", "").Trim();
+                return IPAddress.Parse(externalIpString);
+            }
+            catch
+            {
+                return null;
+            }
+            
         }
 
         

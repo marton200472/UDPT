@@ -25,7 +25,6 @@ namespace BTTracker
         private readonly IPAddress _ipv4addr;
         private readonly IPAddress _pubipv4addr;
         private readonly IPAddress? _ipv6addr;
-        private readonly IPAddress? _pubipv6addr;
         private readonly TrackerDbContext dbContext;
         private readonly TimeSpan _announceInterval;
         private Thread? _thread;
@@ -37,18 +36,17 @@ namespace BTTracker
         private bool _isRunning;
         public bool IsRunning => _isRunning;
 
-        internal DataHandlerThread(IServiceProvider srvcProvider, ConcurrentQueue<RequestMessage> reqQueue, ConcurrentQueue<ResponseMessage> respQueue, ConcurrentQueue<ConnectionId> connIds,ConcurrentQueue<string> torrentUpdateQueue, IPAddress[] localAddresses,IPAddress[] publicAddresses, TimeSpan announceInterval)
+        internal DataHandlerThread(IServiceProvider srvcProvider, ConcurrentQueue<RequestMessage> reqQueue, ConcurrentQueue<ResponseMessage> respQueue, ConcurrentQueue<ConnectionId> connIds,ConcurrentQueue<string> torrentUpdateQueue, IPAddress[] localAddresses,IPAddress publicIPv4Address, TimeSpan announceInterval)
         {
             _requestQueue = reqQueue;
             _responseQueue = respQueue;
             _connectionIds = connIds;
             _torrentUpdateQueue=torrentUpdateQueue;
-            _ipv4addr = localAddresses.Single(x=>x.AddressFamily==AddressFamily.InterNetwork);
-            _pubipv4addr = publicAddresses.Single(x=>x.AddressFamily==AddressFamily.InterNetwork);
-            _ipv6addr = localAddresses.SingleOrDefault(x=>x.AddressFamily==AddressFamily.InterNetworkV6);
-            _pubipv6addr = publicAddresses.SingleOrDefault(x=>x.AddressFamily==AddressFamily.InterNetworkV6);
+            _ipv4addr = localAddresses.Single(x=>x is not null&&x.AddressFamily==AddressFamily.InterNetwork);
+            _pubipv4addr = publicIPv4Address;
+            _ipv6addr = localAddresses.SingleOrDefault(x=>x is not null&&x.AddressFamily==AddressFamily.InterNetworkV6);
 
-            _ipv6Enabled = _ipv6addr is not null && _pubipv6addr is not null;
+            _ipv6Enabled = _ipv6addr is not null;
 
             _announceInterval =announceInterval;
             dbContext = srvcProvider.CreateScope().ServiceProvider.GetService<TrackerDbContext>()!;
@@ -232,16 +230,12 @@ namespace BTTracker
                     return (_pubipv4addr, _ipv4addr);
                 }
                 else{
-                    return (_pubipv6addr!, _ipv6addr);
+                    return (_ipv6addr!,null);
                 }
             }
             else if (source.AddressFamily==AddressFamily.InterNetwork&&source.IsInSubnet(_ipv4addr+"/"+Helpers.GetPrefixLengthForLocalAddress(_ipv4addr) ))
             {
                 return (_pubipv4addr,source);
-            }
-            else if (source.IsIPv6LinkLocal)
-            {
-                return (_pubipv6addr!,source);
             }
             return (source,null);
         }
